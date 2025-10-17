@@ -1,0 +1,34 @@
+# ------------------------
+# Build stage
+# ------------------------
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+
+# Copy pom.xml and download dependencies (cache layer)
+COPY pom.xml .
+RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests dependency:go-offline
+
+# Copy source and build the WAR
+COPY src ./src
+RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests clean package
+
+# List contents of target for debugging
+RUN ls -l /app/target/
+
+# ------------------------
+# Runtime stage
+# ------------------------
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+# Copy WAR artifact from build stage
+COPY --from=build /app/target/cruddemo-0.0.1-SNAPSHOT.war app.war
+
+# Optional JVM options
+ENV JAVA_OPTS=""
+
+# Expose app port
+EXPOSE 8081
+
+# Run Spring Boot WAR (executable)
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.war"]
